@@ -91,6 +91,14 @@ jobs:
         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+    - name: Debug - Print Image and Variables
+      run: |
+        echo "IMAGE      : ${{ steps.build_image.outputs.image }}"
+        echo "REGISTRY   : ${{ env.REGISTRY }}"
+        echo "IMAGE_NAME : ${{ env.IMAGE_NAME }}"
+        echo "GITHUB_REF : ${{ github.ref }}"
+        echo "GITHUB_SHA : ${{ github.sha }}"
+
     - name: Deploy to Azure (Dev)
       uses: Azure/functions-container-action@v1
       with:
