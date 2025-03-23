@@ -4,9 +4,13 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - '**/*.md'
   pull_request:
     branches:
       - main
+    paths-ignore:
+      - '**/*.md'
 
 env:
   REGISTRY: ghcr.io
@@ -65,6 +69,10 @@ jobs:
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
 
+    - name: Convert image name to lowercase
+      shell: pwsh
+      run: echo "IMAGE_NAME_LOWER=$(('${{ steps.build_image.outputs.image }}').ToLower())" >> $GITHUB_ENV
+
   deploy_to_dev:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -91,7 +99,7 @@ jobs:
       uses: azure/webapps-deploy@v2
       with:
         app-name: 'fa-docker-demo-dev'
-        images: '${{ steps.build_image.outputs.image }}'
+        images: '${{ env.IMAGE_NAME_LOWER }}'
 
   deploy_to_test:
     runs-on: ubuntu-latest
@@ -119,7 +127,7 @@ jobs:
       uses: azure/webapps-deploy@v2
       with:
         app-name: 'fa-docker-demo-test'
-        images: '${{ steps.build_image.outputs.image }}'
+        images: '${{ env.IMAGE_NAME_LOWER }}'
 
   deploy_to_prod:
     runs-on: ubuntu-latest
@@ -147,5 +155,5 @@ jobs:
       uses: azure/webapps-deploy@v2
       with:
         app-name: 'fa-docker-demo-prod'
-        images: '${{ steps.build_image.outputs.image }}'
+        images: '${{ env.IMAGE_NAME_LOWER }}'
 
