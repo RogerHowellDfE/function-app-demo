@@ -69,10 +69,6 @@ jobs:
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Convert image name to lowercase
-      shell: pwsh
-      run: echo "IMAGE_NAME_LOWER=$(('${{ steps.build_image.outputs.image }}').ToLower())" >> $GITHUB_ENV
-
   deploy_to_dev:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -99,7 +95,7 @@ jobs:
       uses: Azure/functions-container-action@v1
       with:
         app-name: 'fa-docker-demo-dev'
-        image: '${{ env.IMAGE_NAME_LOWER }}'
+        image: '${{ steps.build_image.outputs.image }}'
 
   deploy_to_test:
     runs-on: ubuntu-latest
@@ -127,7 +123,7 @@ jobs:
       uses: Azure/functions-container-action@v1
       with:
         app-name: 'fa-docker-demo-test'
-        image: '${{ env.IMAGE_NAME_LOWER }}'
+        image: '${{ steps.build_image.outputs.image }}'
 
   deploy_to_prod:
     runs-on: ubuntu-latest
@@ -155,5 +151,5 @@ jobs:
       uses: Azure/functions-container-action@v1
       with:
         app-name: 'fa-docker-demo-prod'
-        image: '${{ env.IMAGE_NAME_LOWER }}'
+        image: '${{ steps.build_image.outputs.image }}'
 
