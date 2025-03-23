@@ -96,10 +96,10 @@ jobs:
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
     - name: Deploy to Azure (Dev)
-      uses: azure/webapps-deploy@v2
+      uses: Azure/functions-container-action@v1
       with:
         app-name: 'fa-docker-demo-dev'
-        images: '${{ env.IMAGE_NAME_LOWER }}'
+        image: '${{ env.IMAGE_NAME_LOWER }}'
 
   deploy_to_test:
     runs-on: ubuntu-latest
@@ -124,10 +124,10 @@ jobs:
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
     - name: Deploy to Azure (Test)
-      uses: azure/webapps-deploy@v2
+      uses: Azure/functions-container-action@v1
       with:
         app-name: 'fa-docker-demo-test'
-        images: '${{ env.IMAGE_NAME_LOWER }}'
+        image: '${{ env.IMAGE_NAME_LOWER }}'
 
   deploy_to_prod:
     runs-on: ubuntu-latest
@@ -152,8 +152,8 @@ jobs:
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
     - name: Deploy to Azure (Prod)
-      uses: azure/webapps-deploy@v2
+      uses: Azure/functions-container-action@v1
       with:
         app-name: 'fa-docker-demo-prod'
-        images: '${{ env.IMAGE_NAME_LOWER }}'
+        image: '${{ env.IMAGE_NAME_LOWER }}'
 
