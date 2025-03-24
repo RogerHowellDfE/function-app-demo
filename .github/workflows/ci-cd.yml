@@ -132,21 +132,28 @@ jobs:
       run: |
         sleep 30  # Wait for the deployment to complete
         $headers = @{ "x-functions-key" = "${{ env.TEMP_API_KEY }}" }
+        $success = $false
         for ($i = 0; $i -lt ${{ env.RETRIES }}; $i++) {
+          Write-Host "Request $($i + 1) of ${{ env.RETRIES }}"
           try {
             Invoke-RestMethod -Uri "${{ steps.fa.outputs.app-url }}/api/HealthCheck" -Headers $headers
+            $success = $true
             break
           } catch {
+            Write-Host "Request failed with status code $($_.Exception.Response.StatusCode)"
             Write-Host "Retrying in ${{ env.SLEEP_TIME }} seconds..."
             Start-Sleep -Seconds ${{ env.SLEEP_TIME }}
           }
+        }
+        if (-not $success) {
+          Write-Error "HealthCheck failed after ${{ env.RETRIES }} attempts."
+          exit 1
         }
 
     - name: Remove Temporary API Key
       if: always()
       run: |
         az functionapp keys delete --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }} || echo "Key not found, skipping deletion"
-
   deploy_to_test:
     runs-on: ubuntu-latest
     needs: [build_and_push_image, deploy_to_dev]
@@ -205,14 +212,21 @@ jobs:
       run: |
         sleep 30  # Wait for the deployment to complete
         $headers = @{ "x-functions-key" = "${{ env.TEMP_API_KEY }}" }
+        $success = $false
         for ($i = 0; $i -lt ${{ env.RETRIES }}; $i++) {
+          Write-Host "Request $($i + 1) of ${{ env.RETRIES }}"
           try {
             Invoke-RestMethod -Uri "${{ steps.fa.outputs.app-url }}/api/HealthCheck" -Headers $headers
+            $success = $true
             break
           } catch {
             Write-Host "Retrying in ${{ env.SLEEP_TIME }} seconds..."
             Start-Sleep -Seconds ${{ env.SLEEP_TIME }}
           }
+        }
+        if (-not $success) {
+          Write-Error "HealthCheck failed after ${{ env.RETRIES }} attempts."
+          exit 1
         }
 
     - name: Remove Temporary API Key
@@ -278,14 +292,21 @@ jobs:
       run: |
         sleep 30  # Wait for the deployment to complete
         $headers = @{ "x-functions-key" = "${{ env.TEMP_API_KEY }}" }
+        $success = $false
         for ($i = 0; $i -lt ${{ env.RETRIES }}; $i++) {
+          Write-Host "Request $($i + 1) of ${{ env.RETRIES }}"
           try {
             Invoke-RestMethod -Uri "${{ steps.fa.outputs.app-url }}/api/HealthCheck" -Headers $headers
+            $success = $true
             break
           } catch {
             Write-Host "Retrying in ${{ env.SLEEP_TIME }} seconds..."
             Start-Sleep -Seconds ${{ env.SLEEP_TIME }}
           }
+        }
+        if (-not $success) {
+          Write-Error "HealthCheck failed after ${{ env.RETRIES }} attempts."
+          exit 1
         }
 
     - name: Remove Temporary API Key
