@@ -88,7 +88,7 @@ jobs:
     env:
       RESOURCE_GROUP: fa-docker-demo
       APP_NAME: fa-docker-demo-dev
-      TEMP_KEY_NAME: temp-key-cicd-smoketest
+      TEMP_KEY_NAME: temp_key_cicd_smoketest
       IMAGE: ${{ needs.build_and_push_image.outputs.image }}
 
     permissions:
@@ -123,9 +123,16 @@ jobs:
 
     - name: Add Temporary API Key for Smoke Test
       id: add_temp_api_key
+      shell: pwsh
       run: |
-        TEMP_API_KEY=$(az functionapp keys set --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }} --query "value" -o tsv)
-        echo "TEMP_API_KEY=${TEMP_API_KEY}" >> $GITHUB_ENV
+        az functionapp keys set --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }}
+        $TEMP_API_KEY = az functionapp keys list --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --query "functionKeys.${{ env.TEMP_KEY_NAME }}" -o tsv
+        echo "TEMP_API_KEY=$TEMP_API_KEY" >> $env:GITHUB_ENV
+        echo "::add-mask::$TEMP_API_KEY"
+        if (-not $TEMP_API_KEY) {
+          Write-Error "TEMP_API_KEY is empty. Exiting..."
+          exit 1
+        }
 
     - name: Smoke Test - Verify HealthCheck
       shell: pwsh
@@ -169,7 +176,7 @@ jobs:
     env:
       RESOURCE_GROUP: fa-docker-demo
       APP_NAME: fa-docker-demo-test
-      TEMP_KEY_NAME: temp-key-cicd-smoketest
+      TEMP_KEY_NAME: temp_key_cicd_smoketest
       IMAGE: ${{ needs.build_and_push_image.outputs.image }}
 
     permissions:
@@ -204,9 +211,16 @@ jobs:
 
     - name: Add Temporary API Key for Smoke Test
       id: add_temp_api_key
+      shell: pwsh
       run: |
-        TEMP_API_KEY=$(az functionapp keys set --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }} --query "value" -o tsv)
-        echo "TEMP_API_KEY=${TEMP_API_KEY}" >> $GITHUB_ENV
+        az functionapp keys set --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }}
+        $TEMP_API_KEY = az functionapp keys list --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --query "functionKeys.${{ env.TEMP_KEY_NAME }}" -o tsv
+        echo "TEMP_API_KEY=$TEMP_API_KEY" >> $env:GITHUB_ENV
+        echo "::add-mask::$TEMP_API_KEY"
+        if (-not $TEMP_API_KEY) {
+          Write-Error "TEMP_API_KEY is empty. Exiting..."
+          exit 1
+        }
 
     - name: Smoke Test - Verify HealthCheck
       shell: pwsh
@@ -250,7 +264,7 @@ jobs:
     env:
       RESOURCE_GROUP: fa-docker-demo
       APP_NAME: fa-docker-demo-prod
-      TEMP_KEY_NAME: temp-key-cicd-smoketest
+      TEMP_KEY_NAME: temp_key_cicd_smoketest
       IMAGE: ${{ needs.build_and_push_image.outputs.image }}
 
     permissions:
@@ -285,9 +299,16 @@ jobs:
 
     - name: Add Temporary API Key for Smoke Test
       id: add_temp_api_key
+      shell: pwsh
       run: |
-        TEMP_API_KEY=$(az functionapp keys set --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }} --query "value" -o tsv)
-        echo "TEMP_API_KEY=${TEMP_API_KEY}" >> $GITHUB_ENV
+        az functionapp keys set --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }}
+        $TEMP_API_KEY = az functionapp keys list --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --query "functionKeys.${{ env.TEMP_KEY_NAME }}" -o tsv
+        echo "TEMP_API_KEY=$TEMP_API_KEY" >> $env:GITHUB_ENV
+        echo "::add-mask::$TEMP_API_KEY"
+        if (-not $TEMP_API_KEY) {
+          Write-Error "TEMP_API_KEY is empty. Exiting..."
+          exit 1
+        }
 
     - name: Smoke Test - Verify HealthCheck
       shell: pwsh
