@@ -120,7 +120,7 @@ jobs:
     - name: Add Temporary API Key for Smoke Test
       id: add_temp_api_key
       run: |
-        TEMP_API_KEY=$(az functionapp keys set --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type function --key-name ${{ env.TEMP_KEY_NAME }} --query "functionKeys.${{ env.TEMP_KEY_NAME }}" -o tsv)
+        TEMP_API_KEY=$(az functionapp keys set --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }} --query "functionKeys.${{ env.TEMP_KEY_NAME }}" -o tsv)
         echo "TEMP_API_KEY=${TEMP_API_KEY}" >> $GITHUB_ENV
 
     - name: Smoke Test - Verify HealthCheck
@@ -133,7 +133,7 @@ jobs:
     - name: Remove Temporary API Key
       if: always()
       run: |
-        az functionapp keys delete --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type function --key-name ${{ env.TEMP_KEY_NAME }}
+        az functionapp keys delete --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }}
 
   deploy_to_test:
     runs-on: ubuntu-latest
@@ -166,6 +166,14 @@ jobs:
         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+    - name: Debug - Print Image and Variables
+      run: |
+        echo "IMAGE      : ${{ needs.build_and_push_image.outputs.image }}"
+        echo "REGISTRY   : ${{ env.REGISTRY }}"
+        echo "IMAGE_NAME : ${{ env.IMAGE_NAME }}"
+        echo "GITHUB_REF : ${{ github.ref }}"
+        echo "GITHUB_SHA : ${{ github.sha }}"
+
     - name: Deploy to Azure (Test)
       uses: Azure/functions-container-action@v1
       with:
@@ -175,7 +183,7 @@ jobs:
     - name: Add Temporary API Key for Smoke Test
       id: add_temp_api_key
       run: |
-        TEMP_API_KEY=$(az functionapp keys set --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type function --key-name ${{ env.TEMP_KEY_NAME }} --query "functionKeys.${{ env.TEMP_KEY_NAME }}" -o tsv)
+        TEMP_API_KEY=$(az functionapp keys set --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }} --query "functionKeys.${{ env.TEMP_KEY_NAME }}" -o tsv)
         echo "TEMP_API_KEY=${TEMP_API_KEY}" >> $GITHUB_ENV
 
     - name: Smoke Test - Verify HealthCheck
@@ -188,7 +196,7 @@ jobs:
     - name: Remove Temporary API Key
       if: always()
       run: |
-        az functionapp keys delete --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type function --key-name ${{ env.TEMP_KEY_NAME }}
+        az functionapp keys delete --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }}
 
   deploy_to_prod:
     runs-on: ubuntu-latest
@@ -221,6 +229,14 @@ jobs:
         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+    - name: Debug - Print Image and Variables
+      run: |
+        echo "IMAGE      : ${{ needs.build_and_push_image.outputs.image }}"
+        echo "REGISTRY   : ${{ env.REGISTRY }}"
+        echo "IMAGE_NAME : ${{ env.IMAGE_NAME }}"
+        echo "GITHUB_REF : ${{ github.ref }}"
+        echo "GITHUB_SHA : ${{ github.sha }}"
+
     - name: Deploy to Azure (Prod)
       uses: Azure/functions-container-action@v1
       with:
@@ -230,7 +246,7 @@ jobs:
     - name: Add Temporary API Key for Smoke Test
       id: add_temp_api_key
       run: |
-        TEMP_API_KEY=$(az functionapp keys set --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type function --key-name ${{ env.TEMP_KEY_NAME }} --query "functionKeys.${{ env.TEMP_KEY_NAME }}" -o tsv)
+        TEMP_API_KEY=$(az functionapp keys set --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }} --query "functionKeys.${{ env.TEMP_KEY_NAME }}" -o tsv)
         echo "TEMP_API_KEY=${TEMP_API_KEY}" >> $GITHUB_ENV
 
     - name: Smoke Test - Verify HealthCheck
@@ -243,5 +259,5 @@ jobs:
     - name: Remove Temporary API Key
       if: always()
       run: |
-        az functionapp keys delete --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type function --key-name ${{ env.TEMP_KEY_NAME }}
+        az functionapp keys delete --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }}
 
