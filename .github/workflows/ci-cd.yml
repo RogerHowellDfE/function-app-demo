@@ -15,7 +15,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: function-app-demo
-  RETRIES: 20
+  MAX_RETRIES: 20
   SLEEP_TIME: 10
 
 jobs:
@@ -74,31 +74,32 @@ jobs:
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
 
-  deploy_to_dev:
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+  deploy:
     runs-on: ubuntu-latest
     needs: build_and_push_image
 
-    concurrency:
-      group: deploy_to_dev
-      cancel-in-progress: true
-
-    environment: Development
-
-    env:
-      RESOURCE_GROUP: fa-docker-demo
-      APP_NAME: fa-docker-demo-dev
-      TEMP_KEY_NAME: temp_key_cicd_smoketest
-      IMAGE: ${{ needs.build_and_push_image.outputs.image }}
-
     permissions:
       id-token: write
       contents: read
+
+    strategy:
+      matrix:
+        environment: [Development, Test, Production]
+
+    env:
+      RESOURCE_GROUP: fa-docker-demo
+      SHORT_NAME: ${{ fromJSON('{"Development":"dev","Test":"test","Production":"prod"}')[matrix.environment] }}
+      FUNCTION_APP_NAME: ${{ fromJSON('{"Development":"fa-docker-demo-dev","Test":"fa-docker-demo-test","Production":"fa-docker-demo-prod"}')[matrix.environment] }}
+      TEMP_KEY_NAME: temp_key_cicd_smoketest
+      IMAGE: ${{ needs.build_and_push_image.outputs.image }}
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
+
+    ## Login to Azure. 
+    ## Note that these details are environment-specific.
     - name: Azure Login
       uses: azure/login@v2
       with:
@@ -106,27 +107,37 @@ jobs:
         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+
     - name: Debug - Print Image and Variables
       run: |
-        echo "IMAGE      : ${{ env.IMAGE }}"
-        echo "REGISTRY   : ${{ env.REGISTRY }}"
-        echo "IMAGE_NAME : ${{ env.IMAGE_NAME }}"
-        echo "GITHUB_REF : ${{ github.ref }}"
-        echo "GITHUB_SHA : ${{ github.sha }}"
+        echo "IMAGE               : ${{ env.IMAGE }}"
+        echo "REGISTRY            : ${{ env.REGISTRY }}"
+        echo "IMAGE_NAME          : ${{ env.IMAGE_NAME }}"
+        echo "GITHUB_REF          : ${{ github.ref }}"
+        echo "GITHUB_SHA          : ${{ github.sha }}"
+        echo "SHORT_NAME          : ${{ env.SHORT_NAME }}"
+        echo "FUNCTION_APP_NAME   : ${{ env.FUNCTION_APP_NAME }}"
 
-    - name: Deploy to Azure (Dev)
-      id: fa
-      uses: Azure/functions-container-action@v1
-      with:
-        app-name: '${{ env.APP_NAME }}'
-        image: '${{ env.IMAGE }}'
 
+    ## Do a smoke test to verify the function app is repsponding to HTTP requests
+    ## Note:
+    ## - We would typically like to verify the version of the app too, to ensure that the correct version is deployed 
+    ##   (e.g., it could be that the previous version never got stopped, and the new version never got started)
+    ## - Additional health checks might validate the app is fully operational (e.g., validating database connections, etc.)
+    - name: Smoke Test - Verify Public HealthCheck
+      shell: pwsh
+      run: ./scripts/smoketest.ps1 -url "${{ steps.fa.outputs.app-url }}/api/HealthCheck" -maxRetries ${{ env.MAX_RETRIES }} -sleepTime ${{ env.SLEEP_TIME }}
+
+
+    ## We programatically create a temporary API key for smoke tests, whose lifetime is limited to the duration of the workflow run
+    ## Note: Do not touch API keys in production
     - name: Add Temporary API Key for Smoke Test
       id: add_temp_api_key
+      if: matrix.environment != 'Production'
       shell: pwsh
       run: |
-        az functionapp keys set --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }}
-        $TEMP_API_KEY = az functionapp keys list --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --query "functionKeys.${{ env.TEMP_KEY_NAME }}" -o tsv
+        az functionapp keys set --name ${{ env.FUNCTION_APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }}
+        $TEMP_API_KEY = az functionapp keys list --name ${{ env.FUNCTION_APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --query "functionKeys.${{ env.TEMP_KEY_NAME }}" -o tsv
         echo "TEMP_API_KEY=$TEMP_API_KEY" >> $env:GITHUB_ENV
         echo "::add-mask::$TEMP_API_KEY"
         if (-not $TEMP_API_KEY) {
@@ -134,204 +145,25 @@ jobs:
           exit 1
         }
 
-    - name: Smoke Test - Verify HealthCheck
+    ## Do an authenticated smoke test in non-production environments
+    ## Don't do authenticated tests in production
+    - name: Smoke Test - Verify Authenticated Function1
+      if: matrix.environment != 'Production'
       shell: pwsh
-      run: |
-        $headers = @{ "x-functions-key" = "${{ env.TEMP_API_KEY }}" }
-        $success = $false
-        for ($i = 0; $i -lt ${{ env.RETRIES }}; $i++) {
-          Write-Host "Request $($i + 1) of ${{ env.RETRIES }}"
-          try {
-            Invoke-RestMethod -Uri "${{ steps.fa.outputs.app-url }}/api/HealthCheck" -Headers $headers
-            $success = $true
-            break
-          } catch {
-            Write-Host "Request failed with status code $($_.Exception.Response.StatusCode)"
-            Write-Host "Retrying in ${{ env.SLEEP_TIME }} seconds..."
-            Start-Sleep -Seconds ${{ env.SLEEP_TIME }}
-          }
-        }
-        if (-not $success) {
-          Write-Error "HealthCheck failed after ${{ env.RETRIES }} attempts."
-          exit 1
-        }
+      run: ./scripts/smoketest.ps1 -url "${{ steps.fa.outputs.app-url }}/api/Function1" -maxRetries ${{ env.MAX_RETRIES }} -sleepTime ${{ env.SLEEP_TIME }} -headers @{ "x-functions-key" = "${{ env.TEMP_API_KEY }}" }
+      
 
+    ## TODO: Here we would do in-depth automated tests (e.g., Postman scripts, Selenium tests, etc.)
+    ## These tests might be restricted to specific environments e.g.:
+    ## - in-depth end-to-end functional tests in the "Test" environment, 
+    ## - security / performance tests in a "Pre-Production" / "SIT" environment
+    ## For simplicity, we are skipping this step in this demo
+       
+
+    ## Fail-safe to remove temporary API key
+    ## Note: As a fail-safe, we always do this in all environments including production
     - name: Remove Temporary API Key
       if: always()
       run: |
-        az functionapp keys delete --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }} || echo "Key not found, skipping deletion"
-
-  deploy_to_test:
-    runs-on: ubuntu-latest
-    needs: [build_and_push_image, deploy_to_dev]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    concurrency:
-      group: deploy_to_test
-      cancel-in-progress: true
-
-    environment: Test
-
-    env:
-      RESOURCE_GROUP: fa-docker-demo
-      APP_NAME: fa-docker-demo-test
-      TEMP_KEY_NAME: temp_key_cicd_smoketest
-      IMAGE: ${{ needs.build_and_push_image.outputs.image }}
-
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Azure Login
-      uses: azure/login@v2
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-    - name: Debug - Print Image and Variables
-      run: |
-        echo "IMAGE      : ${{ env.IMAGE }}"
-        echo "REGISTRY   : ${{ env.REGISTRY }}"
-        echo "IMAGE_NAME : ${{ env.IMAGE_NAME }}"
-        echo "GITHUB_REF : ${{ github.ref }}"
-        echo "GITHUB_SHA : ${{ github.sha }}"
-
-    - name: Deploy to Azure (Test)
-      id: fa
-      uses: Azure/functions-container-action@v1
-      with:
-        app-name: '${{ env.APP_NAME }}'
-        image: '${{ env.IMAGE }}'
-
-    - name: Add Temporary API Key for Smoke Test
-      id: add_temp_api_key
-      shell: pwsh
-      run: |
-        az functionapp keys set --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }}
-        $TEMP_API_KEY = az functionapp keys list --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --query "functionKeys.${{ env.TEMP_KEY_NAME }}" -o tsv
-        echo "TEMP_API_KEY=$TEMP_API_KEY" >> $env:GITHUB_ENV
-        echo "::add-mask::$TEMP_API_KEY"
-        if (-not $TEMP_API_KEY) {
-          Write-Error "TEMP_API_KEY is empty. Exiting..."
-          exit 1
-        }
-
-    - name: Smoke Test - Verify HealthCheck
-      shell: pwsh
-      run: |
-        $headers = @{ "x-functions-key" = "${{ env.TEMP_API_KEY }}" }
-        $success = $false
-        for ($i = 0; $i -lt ${{ env.RETRIES }}; $i++) {
-          Write-Host "Request $($i + 1) of ${{ env.RETRIES }}"
-          try {
-            Invoke-RestMethod -Uri "${{ steps.fa.outputs.app-url }}/api/HealthCheck" -Headers $headers
-            $success = $true
-            break
-          } catch {
-            Write-Host "Request failed with status code $($_.Exception.Response.StatusCode)"
-            Write-Host "Retrying in ${{ env.SLEEP_TIME }} seconds..."
-            Start-Sleep -Seconds ${{ env.SLEEP_TIME }}
-          }
-        }
-        if (-not $success) {
-          Write-Error "HealthCheck failed after ${{ env.RETRIES }} attempts."
-          exit 1
-        }
-
-    - name: Remove Temporary API Key
-      if: always()
-      run: |
-        az functionapp keys delete --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }} || echo "Key not found, skipping deletion"
-
-  deploy_to_prod:
-    runs-on: ubuntu-latest
-    needs: [build_and_push_image, deploy_to_test]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    concurrency:
-      group: deploy_to_prod
-      cancel-in-progress: true
-
-    environment: Production
-
-    env:
-      RESOURCE_GROUP: fa-docker-demo
-      APP_NAME: fa-docker-demo-prod
-      TEMP_KEY_NAME: temp_key_cicd_smoketest
-      IMAGE: ${{ needs.build_and_push_image.outputs.image }}
-
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Azure Login
-      uses: azure/login@v2
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-    - name: Debug - Print Image and Variables
-      run: |
-        echo "IMAGE      : ${{ env.IMAGE }}"
-        echo "REGISTRY   : ${{ env.REGISTRY }}"
-        echo "IMAGE_NAME : ${{ env.IMAGE_NAME }}"
-        echo "GITHUB_REF : ${{ github.ref }}"
-        echo "GITHUB_SHA : ${{ github.sha }}"
-
-    - name: Deploy to Azure (Prod)
-      id: fa
-      uses: Azure/functions-container-action@v1
-      with:
-        app-name: '${{ env.APP_NAME }}'
-        image: '${{ env.IMAGE }}'
-
-    - name: Add Temporary API Key for Smoke Test
-      id: add_temp_api_key
-      shell: pwsh
-      run: |
-        az functionapp keys set --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }}
-        $TEMP_API_KEY = az functionapp keys list --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --query "functionKeys.${{ env.TEMP_KEY_NAME }}" -o tsv
-        echo "TEMP_API_KEY=$TEMP_API_KEY" >> $env:GITHUB_ENV
-        echo "::add-mask::$TEMP_API_KEY"
-        if (-not $TEMP_API_KEY) {
-          Write-Error "TEMP_API_KEY is empty. Exiting..."
-          exit 1
-        }
-
-    - name: Smoke Test - Verify HealthCheck
-      shell: pwsh
-      run: |
-        $headers = @{ "x-functions-key" = "${{ env.TEMP_API_KEY }}" }
-        $success = $false
-        for ($i = 0; $i -lt ${{ env.RETRIES }}; $i++) {
-          Write-Host "Request $($i + 1) of ${{ env.RETRIES }}"
-          try {
-            Invoke-RestMethod -Uri "${{ steps.fa.outputs.app-url }}/api/HealthCheck" -Headers $headers
-            $success = $true
-            break
-          } catch {
-            Write-Host "Request failed with status code $($_.Exception.Response.StatusCode)"
-            Write-Host "Retrying in ${{ env.SLEEP_TIME }} seconds..."
-            Start-Sleep -Seconds ${{ env.SLEEP_TIME }}
-          }
-        }
-        if (-not $success) {
-          Write-Error "HealthCheck failed after ${{ env.RETRIES }} attempts."
-          exit 1
-        }
-
-    - name: Remove Temporary API Key
-      if: always()
-      run: |
-        az functionapp keys delete --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }} || echo "Key not found, skipping deletion"
+        az functionapp keys delete --name ${{ env.FUNCTION_APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }} || echo "Key not found, skipping deletion"
 

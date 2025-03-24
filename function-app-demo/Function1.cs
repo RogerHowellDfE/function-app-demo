@@ -22,7 +22,7 @@ public class Function1
     }
 
     [Function("HealthCheck")]
-    public IActionResult HealthCheck([HttpTrigger(AuthorizationLevel.Function, "get")] HttpRequest req)
+    public IActionResult HealthCheck([HttpTrigger(AuthorizationLevel.Anonymous, "get")] HttpRequest req)
     {
         _logger.LogInformation("Health check endpoint hit.");
         return new OkObjectResult("Healthy");
