@@ -52,6 +52,9 @@ jobs:
     permissions: 
       packages: write
 
+    outputs:
+      image: ${{ steps.build_image.outputs.image }}
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -93,7 +96,7 @@ jobs:
 
     - name: Debug - Print Image and Variables
       run: |
-        echo "IMAGE      : ${{ steps.build_image.outputs.image }}"
+        echo "IMAGE      : ${{ needs.build_and_push_image.outputs.image }}"
         echo "REGISTRY   : ${{ env.REGISTRY }}"
         echo "IMAGE_NAME : ${{ env.IMAGE_NAME }}"
         echo "GITHUB_REF : ${{ github.ref }}"
@@ -103,7 +106,7 @@ jobs:
       uses: Azure/functions-container-action@v1
       with:
         app-name: 'fa-docker-demo-dev'
-        image: '${{ steps.build_image.outputs.image }}'
+        image: '${{ needs.build_and_push_image.outputs.image }}'
 
   deploy_to_test:
     runs-on: ubuntu-latest
@@ -131,7 +134,7 @@ jobs:
       uses: Azure/functions-container-action@v1
       with:
         app-name: 'fa-docker-demo-test'
-        image: '${{ steps.build_image.outputs.image }}'
+        image: '${{ needs.build_and_push_image.outputs.image }}'
 
   deploy_to_prod:
     runs-on: ubuntu-latest
@@ -159,5 +162,5 @@ jobs:
       uses: Azure/functions-container-action@v1
       with:
         app-name: 'fa-docker-demo-prod'
-        image: '${{ steps.build_image.outputs.image }}'
+        image: '${{ needs.build_and_push_image.outputs.image }}'
 
