@@ -137,7 +137,6 @@ jobs:
     - name: Smoke Test - Verify HealthCheck
       shell: pwsh
       run: |
-        sleep 30  # Wait for the deployment to complete
         $headers = @{ "x-functions-key" = "${{ env.TEMP_API_KEY }}" }
         $success = $false
         for ($i = 0; $i -lt ${{ env.RETRIES }}; $i++) {
@@ -225,7 +224,6 @@ jobs:
     - name: Smoke Test - Verify HealthCheck
       shell: pwsh
       run: |
-        sleep 30  # Wait for the deployment to complete
         $headers = @{ "x-functions-key" = "${{ env.TEMP_API_KEY }}" }
         $success = $false
         for ($i = 0; $i -lt ${{ env.RETRIES }}; $i++) {
@@ -313,7 +311,6 @@ jobs:
     - name: Smoke Test - Verify HealthCheck
       shell: pwsh
       run: |
-        sleep 30  # Wait for the deployment to complete
         $headers = @{ "x-functions-key" = "${{ env.TEMP_API_KEY }}" }
         $success = $false
         for ($i = 0; $i -lt ${{ env.RETRIES }}; $i++) {
