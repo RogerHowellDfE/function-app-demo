@@ -19,7 +19,12 @@ public class Function1
     {
         _logger.LogInformation("C# HTTP trigger function processed a request.");
         return new OkObjectResult("Welcome to Azure Functions!");
-
     }
 
+    [Function("HealthCheck")]
+    public IActionResult HealthCheck([HttpTrigger(AuthorizationLevel.Function, "get")] HttpRequest req)
+    {
+        _logger.LogInformation("Health check endpoint hit.");
+        return new OkObjectResult("Healthy");
+    }
 }
