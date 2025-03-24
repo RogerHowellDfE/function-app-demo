@@ -86,7 +86,7 @@ jobs:
     env:
       RESOURCE_GROUP: fa-docker-demo
       APP_NAME: fa-docker-demo-dev
-      TEMP_KEY_NAME: temp-key
+      TEMP_KEY_NAME: temp-key-cicd-smoketest
 
     permissions:
       id-token: write
@@ -112,6 +112,7 @@ jobs:
         echo "GITHUB_SHA : ${{ github.sha }}"
 
     - name: Deploy to Azure (Dev)
+      id: fa
       uses: Azure/functions-container-action@v1
       with:
         app-name: '${{ env.APP_NAME }}'
@@ -120,7 +121,7 @@ jobs:
     - name: Add Temporary API Key for Smoke Test
       id: add_temp_api_key
       run: |
-        TEMP_API_KEY=$(az functionapp keys set --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }} --query "functionKeys.${{ env.TEMP_KEY_NAME }}" -o tsv)
+        TEMP_API_KEY=$(az functionapp keys set --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }} --query "value" -o tsv)
         echo "TEMP_API_KEY=${TEMP_API_KEY}" >> $GITHUB_ENV
 
     - name: Smoke Test - Verify HealthCheck
@@ -128,12 +129,12 @@ jobs:
       run: |
         sleep 30  # Wait for the deployment to complete
         $headers = @{ "x-functions-key" = "${{ env.TEMP_API_KEY }}" }
-        Invoke-RestMethod -Uri "https://fa-docker-demo-dev.azurewebsites.net/api/HealthCheck" -Headers $headers
+        Invoke-RestMethod -Uri "${{ steps.fa.outputs.app-url }}/api/HealthCheck" -Headers $headers
 
     - name: Remove Temporary API Key
       if: always()
       run: |
-        az functionapp keys delete --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }}
+        az functionapp keys delete --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }} || echo "Key not found, skipping deletion"
 
   deploy_to_test:
     runs-on: ubuntu-latest
@@ -149,7 +150,7 @@ jobs:
     env:
       RESOURCE_GROUP: fa-docker-demo
       APP_NAME: fa-docker-demo-test
-      TEMP_KEY_NAME: temp-key
+      TEMP_KEY_NAME: temp-key-cicd-smoketest
 
     permissions:
       id-token: write
@@ -175,6 +176,7 @@ jobs:
         echo "GITHUB_SHA : ${{ github.sha }}"
 
     - name: Deploy to Azure (Test)
+      id: fa
       uses: Azure/functions-container-action@v1
       with:
         app-name: '${{ env.APP_NAME }}'
@@ -183,7 +185,7 @@ jobs:
     - name: Add Temporary API Key for Smoke Test
       id: add_temp_api_key
       run: |
-        TEMP_API_KEY=$(az functionapp keys set --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }} --query "functionKeys.${{ env.TEMP_KEY_NAME }}" -o tsv)
+        TEMP_API_KEY=$(az functionapp keys set --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }} --query "value" -o tsv)
         echo "TEMP_API_KEY=${TEMP_API_KEY}" >> $GITHUB_ENV
 
     - name: Smoke Test - Verify HealthCheck
@@ -191,12 +193,12 @@ jobs:
       run: |
         sleep 30  # Wait for the deployment to complete
         $headers = @{ "x-functions-key" = "${{ env.TEMP_API_KEY }}" }
-        Invoke-RestMethod -Uri "https://fa-docker-demo-test.azurewebsites.net/api/HealthCheck" -Headers $headers
+        Invoke-RestMethod -Uri "${{ steps.fa.outputs.app-url }}/api/HealthCheck" -Headers $headers
 
     - name: Remove Temporary API Key
       if: always()
       run: |
-        az functionapp keys delete --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }}
+        az functionapp keys delete --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }} || echo "Key not found, skipping deletion"
 
   deploy_to_prod:
     runs-on: ubuntu-latest
@@ -212,7 +214,7 @@ jobs:
     env:
       RESOURCE_GROUP: fa-docker-demo
       APP_NAME: fa-docker-demo-prod
-      TEMP_KEY_NAME: temp-key
+      TEMP_KEY_NAME: temp-key-cicd-smoketest
 
     permissions:
       id-token: write
@@ -238,6 +240,7 @@ jobs:
         echo "GITHUB_SHA : ${{ github.sha }}"
 
     - name: Deploy to Azure (Prod)
+      id: fa
       uses: Azure/functions-container-action@v1
       with:
         app-name: '${{ env.APP_NAME }}'
@@ -246,7 +249,7 @@ jobs:
     - name: Add Temporary API Key for Smoke Test
       id: add_temp_api_key
       run: |
-        TEMP_API_KEY=$(az functionapp keys set --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }} --query "functionKeys.${{ env.TEMP_KEY_NAME }}" -o tsv)
+        TEMP_API_KEY=$(az functionapp keys set --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }} --query "value" -o tsv)
         echo "TEMP_API_KEY=${TEMP_API_KEY}" >> $GITHUB_ENV
 
     - name: Smoke Test - Verify HealthCheck
@@ -254,10 +257,10 @@ jobs:
       run: |
         sleep 30  # Wait for the deployment to complete
         $headers = @{ "x-functions-key" = "${{ env.TEMP_API_KEY }}" }
-        Invoke-RestMethod -Uri "https://fa-docker-demo-prod.azurewebsites.net/api/HealthCheck" -Headers $headers
+        Invoke-RestMethod -Uri "${{ steps.fa.outputs.app-url }}/api/HealthCheck" -Headers $headers
 
     - name: Remove Temporary API Key
       if: always()
       run: |
-        az functionapp keys delete --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }}
+        az functionapp keys delete --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} --key-type functionKeys --key-name ${{ env.TEMP_KEY_NAME }} || echo "Key not found, skipping deletion"
 
